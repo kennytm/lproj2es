@@ -9,7 +9,7 @@ pub struct Options {
     #[structopt(help="Root directory to scan for localized bundles")]
     pub root: String,
 
-    #[structopt(short="-u", long="--url", help="Acesss point of the ElasticSearch cluster", default_value="http://127.0.0.1:9200")]
+    #[structopt(short="-u", long="--url", help="Acesss point of the Elasticsearch cluster", default_value="http://127.0.0.1:9200")]
     pub base: String,
 
     #[structopt(short="-i", long="--index", help="Name of the index", default_value="localizations")]

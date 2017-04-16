@@ -13,14 +13,14 @@ error_chain! {
 
     errors {
         NewEsClient {
-            description("cannot construct ElasticSearch client")
+            description("cannot construct Elasticsearch client")
         }
         CreateIndex {
             description("cannot create index")
         }
         CreateIndexUnexpectedReply(reply: Value) {
             description("cannot create index")
-            display("cannot create index, unexpected reply from ElasticSearch: {}", reply)
+            display("cannot create index, unexpected reply from Elasticsearch: {}", reply)
         }
         ReadLproj(lproj: PathBuf) {
             description("cannot read *.lproj")

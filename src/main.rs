@@ -42,7 +42,7 @@ fn run() -> Result<()> {
 
     let start_time = Instant::now();
 
-    eprintln!("Connecting to ElasticSearch cluster at `{}`.", opt.base);
+    eprintln!("Connecting to Elasticsearch cluster at `{}`.", opt.base);
     let mut es = Es::new(&opt.base, &opt.index, &opt.type_)?;
     es.create_index(opt.shards, opt.replicas)?;
 

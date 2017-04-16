@@ -1,4 +1,4 @@
-//! ElasticSearch driver.
+//! Elasticsearch driver.
 
 use std::io::Write;
 use rs_es::Client;
@@ -7,7 +7,7 @@ use serde_json::{to_vec, from_reader, Value};
 
 use error::{ErrorKind, Result, ResultExt};
 
-/// ElasticSearch client.
+/// Elasticsearch client.
 pub struct Es<'a> {
     client: Client,
     index: &'a str,
@@ -15,7 +15,7 @@ pub struct Es<'a> {
 }
 
 impl<'a> Es<'a> {
-    /// Constructs a new ElasticSearch client.
+    /// Constructs a new Elasticsearch client.
     pub fn new(base: &str, index: &'a str, type_: &'a str) -> Result<Es<'a>> {
         Ok(Es {
             client: Client::new(base).chain_err(|| ErrorKind::NewEsClient)?,
@@ -30,7 +30,7 @@ impl<'a> Es<'a> {
         use hyper::client::{Client, Body};
         use hyper::header::ContentType;
 
-        let url = self.client.full_url(&self.index);
+        let url = self.client.full_url(self.index);
         let body = to_vec(&json!({
             "settings": {
                 "number_of_shards": shards,
@@ -70,7 +70,7 @@ impl<'a> Es<'a> {
     pub fn add_translations<I>(&mut self, translations: I) -> Result<usize> where I: Iterator<Item=Value> {
         let actions = translations.map(Action::index).collect::<Vec<_>>();
         if actions.is_empty() {
-            // we need to special-case this, otherwise we will cause ElasticSearch to go NPE (HTTP 500).
+            // we need to special-case this, otherwise we will cause Elasticsearch to go NPE (HTTP 500).
             return Ok(0);
         }
 

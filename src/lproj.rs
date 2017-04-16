@@ -100,7 +100,7 @@ pub struct LocalizedBundle<'a>(HashMap<Key, HashMap<&'a str, String>>);
 impl<'a> LocalizedBundle<'a> {
     /// Adds a key-value pair in the given locale.
     fn add_entry(&mut self, locale_id: &'a str, key: Key, value: Value) {
-        let values = self.0.entry(key).or_insert_with(|| HashMap::new());
+        let values = self.0.entry(key).or_insert_with(HashMap::new);
         values.insert(locale_id, into_es_string(value));
     }
 

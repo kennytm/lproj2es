@@ -3,8 +3,8 @@
 #[macro_use] extern crate structopt_derive;
 #[macro_use] extern crate error_chain;
 #[macro_use] extern crate serde_json;
+#[macro_use] extern crate mime;
 extern crate walkdir;
-extern crate rs_es;
 extern crate hyper;
 extern crate structopt;
 extern crate plist;
@@ -43,7 +43,7 @@ fn run() -> Result<()> {
     let start_time = Instant::now();
 
     eprintln!("Connecting to Elasticsearch cluster at `{}`.", opt.base);
-    let mut es = Es::new(&opt.base, &opt.index, &opt.type_)?;
+    let es = Es::new(opt.base, &opt.index, &opt.type_);
     es.create_index(opt.shards, opt.replicas)?;
 
     eprintln!("Scanning for localized bundles from `{}`...", opt.root);

@@ -1,36 +1,34 @@
 //! Elasticsearch driver.
 
 use std::io::Write;
-use rs_es::Client;
-use rs_es::operations::bulk::Action;
-use serde_json::{to_vec, from_reader, Value};
+use hyper::Url;
+use hyper::client::{Client, Body};
+use hyper::header::ContentType;
+use serde_json::{to_vec, to_writer, from_reader, Value};
 
 use error::{ErrorKind, Result, ResultExt};
 
 /// Elasticsearch client.
 pub struct Es<'a> {
     client: Client,
+    base: Url,
     index: &'a str,
     type_: &'a str,
 }
 
 impl<'a> Es<'a> {
     /// Constructs a new Elasticsearch client.
-    pub fn new(base: &str, index: &'a str, type_: &'a str) -> Result<Es<'a>> {
-        Ok(Es {
-            client: Client::new(base).chain_err(|| ErrorKind::NewEsClient)?,
+    pub fn new(base: Url, index: &'a str, type_: &'a str) -> Es<'a> {
+        Es {
+            client: Client::new(),
+            base: base,
             index: index,
             type_: type_,
-        })
+        }
     }
 
     /// Creates the "localization" index.
-    pub fn create_index(&mut self, shards: u32, replicas: u32) -> Result<()> {
-        // FIXME: Switch to rs-es API once create_index is supported.
-        use hyper::client::{Client, Body};
-        use hyper::header::ContentType;
-
-        let url = self.client.full_url(self.index);
+    pub fn create_index(&self, shards: u32, replicas: u32) -> Result<()> {
         let body = to_vec(&json!({
             "settings": {
                 "number_of_shards": shards,
@@ -44,9 +42,8 @@ impl<'a> Es<'a> {
             },
         })).unwrap();
 
-        let client = Client::new();
-        let resp = client
-            .put(&url)
+        let resp = self.client
+            .put(self.base.join(self.index).unwrap())
             .header(ContentType::json())
             .body(Body::BufBody(&body, body.len()))
             .send().chain_err(|| ErrorKind::CreateIndex)?;
@@ -67,19 +64,36 @@ impl<'a> Es<'a> {
     /// Inserts an iterator of JSON values into the localization index.
     ///
     /// Returns the number of entries successfully added.
-    pub fn add_translations<I>(&mut self, translations: I) -> Result<usize> where I: Iterator<Item=Value> {
-        let actions = translations.map(Action::index).collect::<Vec<_>>();
-        if actions.is_empty() {
+    pub fn add_translations<I>(&self, translations: I) -> Result<usize> where I: Iterator<Item=Value> {
+        let index = to_vec(&json!({
+            "index": {
+                "_index": self.index,
+                "_type": self.type_,
+            },
+        })).unwrap();
+
+        let mut bulk = Vec::new();
+        for translation in translations {
+            bulk.extend(&index);
+            bulk.push(b'\n');
+            to_writer(&mut bulk, &translation)?;
+            bulk.push(b'\n');
+        }
+        if bulk.is_empty() {
             // we need to special-case this, otherwise we will cause Elasticsearch to go NPE (HTTP 500).
             return Ok(0);
         }
 
         let result = self.client
-            .bulk(&actions)
-            .with_index(self.index)
-            .with_doc_type(self.type_)
+            .post(self.base.join("_bulk").unwrap())
+            .header(ContentType(mime!(Application/("x-ndjson"))))
+            .body(Body::BufBody(&bulk, bulk.len()))
             .send()?;
-        Ok(result.items.into_iter().filter(|r| r.inner.status == 201).count())
+
+        let result: Value = from_reader(result)?;
+
+        let items = result["items"].as_array();
+        Ok(items.map(|a| a.iter().filter(|r| r["index"]["status"].as_i64() == Some(201)).count()).unwrap_or(0))
     }
 }
 

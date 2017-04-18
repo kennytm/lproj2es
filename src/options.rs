@@ -1,6 +1,7 @@
 //! Parse command line options.
 
 use clap::AppSettings;
+use hyper::Url;
 use structopt::StructOpt;
 
 /// Command line options.
@@ -10,7 +11,7 @@ pub struct Options {
     pub root: String,
 
     #[structopt(short="-u", long="--url", help="Acesss point of the Elasticsearch cluster", default_value="http://127.0.0.1:9200")]
-    pub base: String,
+    pub base: Url,
 
     #[structopt(short="-i", long="--index", help="Name of the index", default_value="localizations")]
     pub index: String,

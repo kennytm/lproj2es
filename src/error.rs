@@ -7,14 +7,11 @@ error_chain! {
     foreign_links {
         Io(::std::io::Error);
         Plist(::plist::Error);
-        Es(::rs_es::error::EsError);
         Hyper(::hyper::error::Error);
+        Json(::serde_json::Error);
     }
 
     errors {
-        NewEsClient {
-            description("cannot construct Elasticsearch client")
-        }
         CreateIndex {
             description("cannot create index")
         }

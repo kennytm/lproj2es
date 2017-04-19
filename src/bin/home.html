@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+        <title>lproj2es server</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous"/>
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/css/select2.min.css" rel="stylesheet"/>
+        <style>
+            td.text-info { cursor: pointer; }
+            table { table-layout: fixed; word-wrap: break-word; }
+            #result th:last-child { width: 2.5em; }
+            #detail-json th { width: 5.5em; text-align: right; padding-right: 0.75em }
+        </style>
+    </head>
+    <body>
+        <div class="container-fluid bg-faded pt-3 pb-1 mb-2">
+            <form class="form-group row align-items-center">
+                <div class="col-md-2 col-3">
+                    <select id="src-lang" class="form-control" placeholder="Source language">
+                    </select>
+                </div>
+                <div class="col-md-6 col-5">
+                    <input type="text" id="keyword" class="form-control" placeholder="Translate from…" required/>
+                </div>
+                <div class="col-3">
+                    <select id="target-lang" class="form-control" size="1" placeholder="Target language" multiple required>
+                    </select>
+                </div>
+                <div class="col-1">
+                    <button type="button" id="search" class="btn btn-primary" disabled>
+                        Search
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col">
+                    <table class="table table-bordered table-hover" id="result">
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="detail">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5>Translation information</h5>
+                        <button type="button" class="close" data-dismiss="modal">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <table id="detail-json" class="table table-sm table-hover"></table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://code.jquery.com/jquery-3.1.1.slim.min.js" integrity="sha384-A7FZj7v+d/sdmMqp/nOQwliLvUsJfDHW+k9Omg/a/EheAdgtzNs3hpfag6Ed950n" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js" integrity="sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/select2.min.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js" integrity="sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn" crossorigin="anonymous"></script>
+        <script>
+            'use strict';
+
+            function doLoadLanguages(languages) {
+                languages.sort();
+                var srcLang = $('#src-lang');
+                var targetLang = $('#target-lang');
+
+                languages.forEach(function(l) {
+                    var tag = $('<option/>').text(l).val(l);
+                    srcLang.append(tag.clone(false));
+                    targetLang.append(tag);
+                });
+
+                srcLang.val(localStorage.getItem('src-lang') || 'en_US');
+                var targetLangs = localStorage.getItem('target-lang');
+                if (targetLangs) {
+                    targetLang.val(targetLangs.split(','));
+                }
+
+                $('#src-lang,#target-lang').select2({
+                    width: '100%',
+                    tokenSeparators: [' ', ','],
+                });
+                $('#search').prop('disabled', false);
+            }
+
+            function loadLanguages() {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', '/languages', true);
+                xhr.onreadystatechange = function (e) {
+                    if (xhr.readyState === 4 && xhr.status === 200) {
+                        doLoadLanguages(JSON.parse(xhr.responseText));
+                    }
+                };
+                xhr.send();
+            }
+
+            function appendTranslationCell(row, s) {
+                var cell = $('<td/>').appendTo(row);
+                if (/^\{\s*"[^"]+"\s*:/.test(s)) {
+                    cell.append($('<pre/>').text(s));
+                } else {
+                    cell.text(s);
+                }
+            }
+
+            function printSearchResult(searchResult, srcLang, targetLangs) {
+                $('#search').prop('disabled', false);
+
+                var tbody = $('<tbody/>').appendTo($('#result'));
+                var titleRowTemplate = '<td class="text-muted" colspan="' + (targetLangs.length + 1) + '"><small/></td>'
+
+                searchResult.sort(function(a, b) {
+                    var bsc = b._score * Math.pow(b._count, 0.25);
+                    var asc = a._score * Math.pow(a._count, 0.25);
+                    return asc < bsc ? 1 : asc > bsc ? -1 : 0;
+                });
+                searchResult.forEach(function(sr) {
+                    var source = sr._source;
+                    var title = source.KEY + ' @ ' + source.BUNDLE.match(/[^/]+$/) + '/*.lproj/' + source.FILE + ' (' + sr._score + ' × ' + sr._count + ')';
+                    var row = $('<tr/>').appendTo(tbody).prop('title', title);
+                    appendTranslationCell(row, source[srcLang]);
+                    targetLangs.forEach(function (tl) {
+                        appendTranslationCell(row, source[tl]);
+                    });
+                    row.append($('<td class="text-info">ⓘ</td>').data('sr', sr));
+                });
+            }
+
+            function printSearchHeader(srcLang, targetLangs) {
+                var thead = $('<thead class="thead-inverse sticky-top"/>').appendTo($('#result').empty());
+                var row = $('<tr/>').appendTo(thead);
+
+                row.append($('<th/>').text(srcLang));
+                targetLangs.forEach(function(tl) {
+                    row.append($('<th/>').text(tl));
+                });
+                row.append('<th/>');
+            }
+
+            function search() {
+                var srcLang = $('#src-lang').val();
+                var targetLangs = $('#target-lang').val();
+                var srcLangIndexInTarget = targetLangs.indexOf(srcLang);
+                if (srcLangIndexInTarget !== -1) {
+                    targetLangs.splice(srcLangIndexInTarget, 1);
+                }
+
+                var keyword = $('#keyword').val();
+                if (!keyword || !targetLangs.length) {
+                    return;
+                }
+
+                localStorage.setItem('src-lang', srcLang);
+                localStorage.setItem('target-lang', targetLangs.join(','));
+
+                $('#search').prop('disabled', true);
+                printSearchHeader(srcLang, targetLangs);
+
+                var xhr = new XMLHttpRequest();
+                var url = '/search?f=';
+                url += encodeURIComponent(srcLang);
+                url += '&k=';
+                url += encodeURIComponent(keyword);
+                url += '&t=';
+                url += encodeURIComponent(targetLangs.join(','));
+                xhr.open('GET', url, true);
+                xhr.onreadystatechange = function (e) {
+                    if (xhr.readyState === 4 && xhr.status === 200) {
+                        printSearchResult(JSON.parse(xhr.responseText), srcLang, targetLangs);
+                    }
+                };
+                xhr.send();
+            }
+
+            function showDetail() {
+                var table = $('#detail-json').empty();
+                var sr = $(this).data('sr');
+
+                function addRow(k) {
+                    var row = $('<tr/>').appendTo(table);
+                    row.append($('<th/>').text(k));
+                    appendTranslationCell(row, sr[k]);
+                }
+
+                addRow('_score');
+                addRow('_count');
+                addRow('_index');
+                addRow('_type');
+                addRow('_id');
+
+                sr = sr._source;
+
+                var keys = Object.keys(sr);
+                keys.sort();
+                keys.forEach(addRow);
+
+                $('#detail').modal('show');
+            }
+
+            $(function() {
+                loadLanguages();
+                $('#search').click(search);
+                $('#result').on('click', '.text-info', showDetail);
+            });
+        </script>
+    </body>
+</html>

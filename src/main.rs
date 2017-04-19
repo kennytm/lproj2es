@@ -28,7 +28,7 @@ use std::io::Write;
 use std::default::Default;
 use std::time::{Instant, Duration};
 use std::fmt::{self, Display, Formatter};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use pbr::ProgressBar;
 
@@ -55,7 +55,7 @@ fn run() -> Result<()> {
     let mut progress_bar = ProgressBar::new(localized_bundles.len() as u64);
     progress_bar.set_width(Some(100));
     progress_bar.set_max_refresh_rate(Some(Duration::from_millis(500)));
-    let mut progress_bar = Arc::new(Mutex::new(progress_bar));
+    let mut progress_bar = Mutex::new(progress_bar);
 
     let total_count: Result<usize> = localized_bundles.into_par_iter().map(|(bundle_path, localizations)| -> Result<usize> {
         let mut bundle = LocalizedBundle::default();
@@ -78,7 +78,7 @@ fn run() -> Result<()> {
 
     let duration = start_time.elapsed();
     let finish_msg = format!("Finished, imported {} translations in {}", total_count, PrettyDuration(duration));
-    Arc::get_mut(&mut progress_bar).unwrap().get_mut().unwrap().finish_println(&finish_msg);
+    progress_bar.get_mut().unwrap().finish_println(&finish_msg);
 
     Ok(())
 }

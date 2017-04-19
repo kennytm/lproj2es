@@ -161,7 +161,7 @@ fn main() {
             (Some(&PVString(ref f)), Some(&PVString(ref t)), Some(&PVString(ref k))) => (f, t, k),
             _ => return Ok(Response::with((status::BadRequest, "[]"))),
         };
-        reply_json(&search_searcher.search(&source, target.split(','), &keyword)?)
+        reply_json(&search_searcher.search(source, target.split(','), keyword)?)
     });
     if cfg!(debug_assertions) {
         mount.mount("/", Static::new(Path::new(file!()).with_file_name("home.html")));

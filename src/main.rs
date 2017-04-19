@@ -8,8 +8,9 @@ extern crate walkdir;
 extern crate hyper;
 extern crate structopt;
 extern crate plist;
-extern crate progress;
 extern crate clap;
+extern crate rayon;
+extern crate pbr;
 
 macro_rules! eprintln {
     ($($e:expr),*) => {
@@ -27,7 +28,9 @@ use std::io::Write;
 use std::default::Default;
 use std::time::{Instant, Duration};
 use std::fmt::{self, Display, Formatter};
-use progress::Bar;
+use std::sync::{Arc, Mutex};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use pbr::ProgressBar;
 
 use options::Options;
 use lproj::{scan_localized_bundles, LocalizedBundle};
@@ -49,14 +52,12 @@ fn run() -> Result<()> {
     eprintln!("Scanning for localized bundles from `{}`...", opt.root);
     let localized_bundles = scan_localized_bundles(opt.root);
 
-    let mut progress_bar = ProgressBar::new(localized_bundles.len());
-    eprintln!("Found {} localized bundles.", progress_bar.total);
+    let mut progress_bar = ProgressBar::new(localized_bundles.len() as u64);
+    progress_bar.set_width(Some(100));
+    progress_bar.set_max_refresh_rate(Some(Duration::from_millis(500)));
+    let mut progress_bar = Arc::new(Mutex::new(progress_bar));
 
-    progress_bar.start();
-    // written as a `fold` to allow for future parallelization.
-    let total_count = localized_bundles.into_iter().fold(Ok(0), |prev_count, (bundle_path, localizations)| -> Result<usize> {
-        let prev_count = prev_count?;
-
+    let total_count: Result<usize> = localized_bundles.into_par_iter().map(|(bundle_path, localizations)| -> Result<usize> {
         let mut bundle = LocalizedBundle::default();
         for localization in &localizations {
             let lproj_path = bundle_path.join(localization);
@@ -66,13 +67,18 @@ fn run() -> Result<()> {
 
         let translations = bundle.into_iter(&bundle_path);
         let count = es.add_translations(translations).chain_err(|| ErrorKind::IndexTranslations(bundle_path))?;
-        progress_bar.add_one();
+        {
+            let mut lock = progress_bar.lock().unwrap();
+            lock.inc();
+        }
 
-        Ok(prev_count + count)
-    })?;
+        Ok(count)
+    }).sum();
+    let total_count = total_count?;
 
     let duration = start_time.elapsed();
-    eprintln!("Finished, imported {} translations in {}", total_count, PrettyDuration(duration));
+    let finish_msg = format!("Finished, imported {} translations in {}", total_count, PrettyDuration(duration));
+    Arc::get_mut(&mut progress_bar).unwrap().get_mut().unwrap().finish_println(&finish_msg);
 
     Ok(())
 }
@@ -88,35 +94,6 @@ impl Display for PrettyDuration {
         } else {
             write!(f, "{}s", secs)
         }
-    }
-}
-
-/// Wrapper to print progress.
-struct ProgressBar {
-    bar: Bar,
-    total: usize,
-    count: usize,
-}
-
-impl ProgressBar {
-    fn new(total: usize) -> ProgressBar {
-        ProgressBar {
-            bar: Bar::new(),
-            total: total,
-            count: 0,
-        }
-    }
-
-    fn add_one(&mut self) {
-        self.count += 1;
-        self.bar.reach_percent((self.count * 100 / self.total) as i32);
-        if self.count >= self.total {
-            self.bar.jobs_done();
-        }
-    }
-
-    fn start(&mut self) {
-        self.bar.set_job_title("Indexing...");
     }
 }
 

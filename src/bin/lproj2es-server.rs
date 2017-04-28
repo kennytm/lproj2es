@@ -7,6 +7,7 @@ extern crate hyper;
 extern crate serde;
 extern crate params;
 extern crate staticfile;
+extern crate url;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -18,12 +19,15 @@ use iron::status;
 use mount::Mount;
 use structopt::StructOpt;
 use hyper::{Client, Url};
-use hyper::client::Body;
+use hyper::client::{Body, RequestBuilder};
+use hyper::header::{Authorization, Basic};
+use hyper::method::Method;
 use serde::Serialize;
 use serde_json::{Value, from_reader, to_vec};
 use params::Params;
 use params::Value::String as PVString;
 use staticfile::Static;
+use url::percent_encoding::percent_decode;
 
 #[derive(StructOpt)]
 struct Options {
@@ -43,14 +47,24 @@ struct Options {
 struct Searcher {
     client: Client,
     base: Url,
+    authorization: Option<Authorization<Basic>>,
     index: String,
     type_: String,
 }
 
 impl Searcher {
+    fn request(&self, method: Method, path: &str) -> RequestBuilder {
+        let url = self.base.join(path).unwrap();
+        let mut req = self.client.request(method, url);
+        if let Some(ref authorization) = self.authorization {
+            req = req.header(authorization.clone());
+        }
+        req
+    }
+
     fn list_languages(&self) -> IronResult<Vec<String>> {
-        let url = self.base.join(&format!("/{}/_mappings/{}", self.index, self.type_)).unwrap();
-        let resp = itry!(self.client.get(url).send());
+        let path = format!("/{}/_mappings/{}", self.index, self.type_);
+        let resp = itry!(self.request(Method::Get, &path).send());
         let content: Value = itry!(from_reader(resp));
         let properties = content[&self.index]["mappings"][&self.type_]["properties"].as_object();
         Ok(properties.map(|p| p.keys().filter(|s| s.contains('_')).cloned().collect()).unwrap_or_else(Vec::new))
@@ -59,11 +73,10 @@ impl Searcher {
     fn search<'a, I>(&self, source: &str, targets: I, keyword: &str) -> IronResult<Vec<Value>>
         where I: Iterator<Item=&'a str>
     {
-        let url = self.base.join(&format!("/{}/{}/_search", self.index, self.type_)).unwrap();
+        let path = format!("/{}/{}/_search", self.index, self.type_);
         let query = construct_search_query(source, targets, keyword);
         let body = to_vec(&query).unwrap();
-        let resp = itry!(self.client
-            .post(url)
+        let resp = itry!(self.request(Method::Post, &path)
             .header(ContentType::json())
             .body(Body::BufBody(&body, body.len()))
             .send());
@@ -142,12 +155,28 @@ fn reply_json<T: ?Sized + Serialize>(r: &T) -> IronResult<Response> {
     Ok(resp)
 }
 
+fn decode(s: &str) -> String {
+    percent_decode(s.as_bytes()).decode_utf8_lossy().into_owned()
+}
+
 fn main() {
     let opts = Options::from_args();
 
+    let mut base = opts.base;
+    let authorization = match (base.username(), base.password()) {
+        ("", None) => None,
+        (username, password) => Some(Authorization(Basic {
+            username: decode(username),
+            password: password.map(decode),
+        })),
+    };
+    let _ = base.set_username("");
+    let _ = base.set_password(None);
+
     let search_searcher = Arc::new(Searcher {
         client: Client::new(),
-        base: opts.base,
+        base: base,
+        authorization: authorization,
         index: opts.index,
         type_: opts.type_,
     });

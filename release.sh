@@ -3,7 +3,8 @@
 set -euo pipefail
 
 VERSION=$(cargo pkgid | grep -o '#.*' | cut -b '2-')
+PLATFORM="$(uname -s)-$(uname -m)"
 
 cargo +stable build --release
-cp target/release/lproj2es .   # needs to copy due to the hardlink.
-xz -6 -e -S "-${VERSION}.xz" lproj2es
+cd target/release
+tar cfJ "../../lproj2es-${VERSION}-${PLATFORM}.tar.xz" lproj2es lproj2es-server

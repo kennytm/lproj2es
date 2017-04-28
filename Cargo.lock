@@ -1,6 +1,6 @@
 [root]
 name = "lproj2es"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "clap 2.23.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "error-chain 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -19,6 +19,7 @@ dependencies = [
  "staticfile 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt-derive 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "url 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "walkdir 1.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

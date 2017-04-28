@@ -1,6 +1,6 @@
 [package]
 name = "lproj2es"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["kennytm <kennytm@gmail.com>"]
 description = "Dump iOS localization strings into ElasticSearch"
 repository = "https://github.com/kennytm/lproj2es"
@@ -15,6 +15,7 @@ walkdir = "1.0"
 lazy_static = "0.2"
 maplit = "0.1"
 hyper = "0.10"
+url = "1.4"
 serde = "1.0"
 serde_json = "1.0"
 structopt = "0.0"

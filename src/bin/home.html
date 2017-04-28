@@ -91,7 +91,7 @@
 
             function loadLanguages() {
                 var xhr = new XMLHttpRequest();
-                xhr.open('GET', '/languages', true);
+                xhr.open('GET', 'languages', true);
                 xhr.onreadystatechange = function (e) {
                     if (xhr.readyState === 4 && xhr.status === 200) {
                         doLoadLanguages(JSON.parse(xhr.responseText));
@@ -163,7 +163,7 @@
                 printSearchHeader(srcLang, targetLangs);
 
                 var xhr = new XMLHttpRequest();
-                var url = '/search?f=';
+                var url = 'search?f=';
                 url += encodeURIComponent(srcLang);
                 url += '&k=';
                 url += encodeURIComponent(keyword);
